@@ -1,0 +1,190 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notas de retirada</title>
+{% if emitindo %}<meta http-equiv="refresh" content="15">{% endif %}
+<link rel="icon" href="{% static 'rotas/logo.svg' %}" type="image/svg+xml">
+<script src="{% static 'rotas/tema.js' %}?v={{ versao|urlencode }}"></script>
+<link rel="stylesheet" href="{% static 'rotas/app.css' %}?v={{ versao|urlencode }}">
+<style>
+.ret .rname{margin-block:0}
+.ret th,.ret td{padding:10px 14px}
+.ret th.n,.ret td.n{text-align:right}
+.ret td.n{font-size:16px;font-weight:700}
+/* embaixo do RT/CX da rota: a soma dos volumes das notas, verde se bate */
+.ret .conf{display:block;margin-top:2px;font-size:11px;font-weight:600}
+.ret .conf.ok{color:var(--ok)} .ret .conf.bad{color:var(--bad)}
+.ret .lj .loja{display:block;text-transform:uppercase}
+.ret .emp{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+/* uma nota por linha, colunas alinhadas entre as notas da loja */
+.ret .nfs{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,max-content) minmax(0,1fr);gap:6px 12px;align-items:center}
+.ret .nfs li{display:contents}
+.ret .nf{font-family:var(--mono);font-size:13px;font-weight:600}
+.ret a.nf{color:var(--accent)}
+.ret .tag{text-align:center;padding:1px 7px}
+.ret .tag.rt{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.ret .op{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.ret .dif{color:var(--bad);font-weight:700}
+.ret .sem{color:var(--muted)}
+.ret td.cte{white-space:normal;min-width:240px}
+.ret .vals{display:flex;gap:6px 22px}
+.ret .acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ret span.chip{margin-top:10px;white-space:normal}
+.ret .chip small{display:block;font-weight:500;opacity:.8}
+a.btn{display:inline-block;text-decoration:none}
+#cte{width:min(480px,calc(100vw - 32px));height:fit-content;margin:auto;border:1px solid var(--line);border-radius:3px}
+#cte .resumo{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end}
+#cte .dfoot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+@media (max-width:760px){
+  .ret td.lj,.ret td.notas,.ret td.cte{grid-column:1/-1}
+  .ret td.lj::before{display:none}
+  .ret td.lj .loja{font-size:17px}
+  .ret th.n,.ret td.n{text-align:left}
+  .ret td:empty{display:none}
+  .ret .op{grid-column:1/-1;margin:-4px 0 4px}
+  .ret .acoes .btn{flex:1 1 auto;padding:9px 10px;text-align:center}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">Notas de retirada<small>RT e CX que as lojas emitiram para o CD, para os CT-es</small></div>
+    <div class="user"><b>{{ usuario }}</b> <span class="atalhos"><a href="{% url 'ctes' %}">CT-es da ida / login SSW</a><a href="{% url 'semana' %}">Voltar às rotas</a></span></div>
+  </div>
+</header>
+<main class="wrap">
+  <div class="acoes" style="margin-bottom:12px"><button class="btn sm" id="buscar">Buscar agora</button>
+    {% if pode_todos %}<button class="btn sm primary" id="todos">Fazer todos os CT-es ({{ pode_todos|length }})</button>{% endif %}</div>
+  <p class="dmsg">Procuradas na TOTVS a cada 10 minutos, ou na hora pelo "Buscar agora".
+    Os PDFs também ficam na pasta {{ pasta }}. RT e CX: o número lançado na rota e, embaixo, a soma dos volumes das notas.</p>
+  {% if dias %}<form class="week" method="get" aria-label="Dia das rotas" style="margin-bottom:16px">
+    {% for k, d, n in dias %}<button name="dia" value="{{ k }}" aria-pressed="{% if k == dia %}true{% else %}false{% endif %}"><span>{{ d|date:"D"|upper }}</span><b>{{ d|date:"d/m" }}</b><i>{{ n }} rota{{ n|pluralize }}</i></button>{% endfor %}
+    <button name="dia" value="" aria-pressed="{% if not dia %}true{% else %}false{% endif %}"><b>Todos</b><i>7 dias atrás a 3 à frente</i></button>
+  </form>{% endif %}
+  {% for rota, paradas in rotas %}
+  <section class="route ret">
+    <div class="rhead">
+      <h2 class="rname">{{ rota.nome }} <small>{{ rota.data|date:"d/m D" }}</small></h2>
+      <div class="field"><span class="k">Placa</span>{% if rota.veiculo %}<span class="plate"><span>{{ rota.veiculo }}</span></span>{% else %}<span class="v dif">sem placa na rota</span>{% endif %}</div>
+      <div class="field"><span class="k">Lojas</span><span class="v">{{ paradas|length }}</span></div>
+      {% if rota.dactes %}<a class="btn sm" href="{% url 'retiradas_rota_pdf' rota.pk %}" title="Todos os DACTEs de retorno da rota num PDF; abra no Adobe para imprimir">Imprimir todos ({{ rota.dactes }})</a>{% endif %}
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Loja</th><th class="n">RT</th><th class="n">CX</th><th>Notas (DANFE)</th><th>CT-e no SSW (um por loja)</th></tr></thead>
+      <tbody>
+      {% for p in paradas %}
+        <tr>
+          <td class="lj"><b class="loja">{{ p.loja }}</b><span class="emp">EMP {{ p.emp }}</span></td>
+          <td class="n" data-label="RT">{{ p.rt|default:"0" }}{% if p.notas %}<span class="conf {% if p.vol_rt|stringformat:'s' != p.rt|default:'0' %}bad{% else %}ok{% endif %}">notas: {{ p.vol_rt }}</span>{% endif %}</td>
+          <td class="n" data-label="CX">{{ p.cx|default:"0" }}{% if p.notas %}<span class="conf {% if p.vol_cx|stringformat:'s' != p.cx|default:'0' %}bad{% else %}ok{% endif %}">notas: {{ p.vol_cx }}</span>{% endif %}</td>
+          <td class="notas" data-label="Notas">{% if p.notas %}<ul class="nfs">{% for n in p.notas %}
+            <li>{% if n.operacao in cx %}<span class="tag extra">CX</span>{% else %}<span class="tag rt">RT</span>{% endif %}
+              {% if n.pdf %}<a class="nf" href="{% url 'retirada_pdf' n.chave %}" target="_blank">NF {{ n.numero }}</a>{% else %}<span class="nf">NF {{ n.numero }}</span>{% endif %}
+              <span>{{ n.volumes|default:"?" }} vol</span>
+              <span>{{ n.emissao|date:"d/m" }}</span>
+              <span class="op" title="{{ n.nome_operacao }}">{% if not n.pdf %}<span class="dif">PDF não gerado pela TOTVS</span> · {% endif %}{{ n.nome_operacao }}</span></li>
+          {% endfor %}</ul>{% else %}<span class="sem">nenhuma nota autorizada ainda</span>{% endif %}</td>
+          <td class="cte" data-label="CT-e">{% if p.notas %}
+            <div class="vals">
+              <div class="field"><span class="k">Frete</span><span class="v{% if not p.frete_retorno %} dif{% endif %}">{% if p.frete_retorno %}R$ {{ p.frete_retorno|floatformat:'2g' }}{% else %}sem frete{% endif %}</span></div>
+              <div class="field"><span class="k">Peso</span><span class="v">{{ p.peso|floatformat:3 }} kg</span></div>
+            </div>
+            {% if p.cte_situacao %}{% with s=p.cte_situacao %}<span class="chip {% if 'rro' in s or 'conferir' in s or 'Não' in s or 'Interrompido' in s %}bad{% elif 'autorizado' in s %}ok{% else %}warn{% endif %}">{{ s }}<small>{{ p.cte_em|date:"d/m H:i" }}</small></span>{% endwith %}{% endif %}
+            <div class="acoes">
+              {% if not p.cte_problema %}<button class="btn sm primary fazer-cte" data-url="{% url 'retirada_cte' p.pk %}"
+                data-loja="{{ p.loja }}" data-placa="{{ rota.veiculo }}" data-notas="{{ p.notas|length }}" data-volumes="{{ p.vol_rt|add:p.vol_cx }}"
+                data-peso="{{ p.peso|floatformat:3 }} kg" data-frete="R$ {{ p.frete_retorno|floatformat:'2g' }}">Fazer CT-e</button>{% endif %}
+              {% if p.cte_pdf %}<a class="btn sm" href="{% url 'retirada_cte_pdf' p.pk %}" title="Baixa o PDF; abra no Adobe para imprimir">DACTE {{ p.cte_ctrc }}</a>{% endif %}
+              <button class="btn sm copiar" data-chaves="{% for n in p.notas %}{{ n.chave }}{% if not forloop.last %}&#10;{% endif %}{% endfor %}">Copiar {{ p.notas|length }} chave{{ p.notas|length|pluralize }}</button>
+            </div>
+            {% if p.cte_problema and not p.cte_ctrc and not p.cte_situacao %}<span class="emp">CT-e: {{ p.cte_problema }}</span>{% endif %}
+          {% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% empty %}
+  <div class="empty">{% if dia %}Nenhuma rota com retirada neste dia.{% else %}Nenhuma rota com retirada de 7 dias atrás até 3 dias à frente.{% endif %}</div>
+  {% endfor %}
+</main>
+<dialog id="cte" aria-labelledby="cte-titulo">
+  <form method="dialog">
+    <div class="dhead"><h2 id="cte-titulo">Fazer o CT-e de <span data-k="loja"></span>?</h2></div>
+    <div class="dbody">
+      <div class="resumo">
+        <div class="field"><span class="k">Placa</span><span class="plate"><span data-k="placa"></span></span></div>
+        <div class="field"><span class="k">Notas</span><span class="v" data-k="notas"></span></div>
+        <div class="field"><span class="k">Volumes</span><span class="v" data-k="volumes"></span></div>
+        <div class="field"><span class="k">Peso</span><span class="v" data-k="peso"></span></div>
+        <div class="field"><span class="k">Frete</span><span class="v" data-k="frete"></span></div>
+      </div>
+      <p class="dmsg">O sistema grava no SSW, envia à SEFAZ e imprime o DACTE. Depois de gravado, não dá para desfazer por aqui.</p>
+    </div>
+    <div class="dfoot"><button class="btn" value="" autofocus>Cancelar</button><button class="btn primary" value="sim">Fazer CT-e</button></div>
+  </form>
+</dialog>
+<dialog id="cte-todos" aria-labelledby="todos-titulo">
+  <form method="dialog">
+    <div class="dhead"><h2 id="todos-titulo">Fazer {{ pode_todos|length }} CT-e{{ pode_todos|length|pluralize }}?</h2></div>
+    <div class="dbody">
+      <div class="tbl"><table><thead><tr><th>Loja</th><th>Placa</th><th class="n">Vol</th><th class="n">Peso</th><th class="n">Frete</th></tr></thead><tbody>
+      {% for p in pode_todos %}<tr><td>{{ p.loja }}</td><td>{{ p.rota.veiculo }}</td><td class="n">{{ p.vol_rt|add:p.vol_cx }}</td>
+        <td class="n">{{ p.peso|floatformat:3 }} kg</td><td class="n">R$ {{ p.frete_retorno|floatformat:'2g' }}</td></tr>{% endfor %}
+      </tbody></table></div>
+      <p class="dmsg">Entram na fila e o SSW faz um por vez: grava, envia à SEFAZ e imprime o DACTE. Depois de gravado, não dá para desfazer por aqui.</p>
+    </div>
+    <div class="dfoot"><button class="btn" value="" autofocus>Cancelar</button><button class="btn primary" value="sim">Fazer todos</button></div>
+  </form>
+</dialog>
+<script>
+const todos = document.getElementById("cte-todos");
+document.getElementById("todos")?.addEventListener("click", () => { todos.returnValue = ""; todos.showModal(); });
+todos.addEventListener("close", async () => {
+  if (todos.returnValue !== "sim") return;
+  const erros = [];
+  for (const f of document.querySelectorAll(".fazer-cte")) {  // um por vez, na ordem da página
+    const r = await fetch(f.dataset.url, {method: "POST", headers: {"X-CSRFToken": "{{ csrf_token }}"}});
+    if (!r.ok) erros.push(f.dataset.loja + ": " + ((await r.json().catch(() => ({}))).erro || r.status));
+  }
+  if (erros.length) alert("Não entraram na fila:" + String.fromCharCode(10) + erros.join(String.fromCharCode(10)));
+  location.reload();
+});
+document.getElementById("buscar").addEventListener("click", async e => {
+  const b = e.target; b.disabled = true; b.textContent = "Buscando…";
+  const r = await fetch("{% url 'retiradas_buscar' %}", {method: "POST", headers: {"X-CSRFToken": "{{ csrf_token }}"}});
+  if (!r.ok) alert("A busca na TOTVS falhou (" + r.status + "). Tente de novo.");
+  location.reload();
+});
+const dlg = document.getElementById("cte");
+let pedido;  // o "Fazer CT-e" da loja que abriu a janela
+dlg.addEventListener("close", async () => {
+  const f = pedido;
+  if (dlg.returnValue !== "sim" || !f) return;  // Cancelar ou Esc
+  f.disabled = true; f.textContent = "Enviando…";
+  const r = await fetch(f.dataset.url, {method: "POST", headers: {"X-CSRFToken": "{{ csrf_token }}"}});
+  if (!r.ok) alert("Não deu para fazer o CT-e: " + ((await r.json().catch(() => ({}))).erro || r.status));
+  location.reload();
+});
+document.addEventListener("click", async e => {
+  const f = e.target.closest(".fazer-cte");
+  if (f) {
+    pedido = f;
+    for (const el of dlg.querySelectorAll("[data-k]")) el.textContent = f.dataset[el.dataset.k];
+    dlg.returnValue = "";
+    dlg.showModal();  // o foco começa no Cancelar: Enter sem querer não emite
+    return;
+  }
+  const b = e.target.closest(".copiar");
+  if (!b) return;
+  const antes = b.textContent;
+  try { await navigator.clipboard.writeText(b.dataset.chaves); b.textContent = "Copiado!"; }
+  catch { prompt("Copie as chaves:", b.dataset.chaves.replace(/\n/g, " ")); }  // http por IP (NetBird) não libera a área de transferência
+  setTimeout(() => b.textContent = antes, 1500);
+});
+</script>
+</body>
+</html>

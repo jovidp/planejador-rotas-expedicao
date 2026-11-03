@@ -1,0 +1,33 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entrar - Rotas</title>
+<link rel="icon" href="{% static 'rotas/logo.svg' %}" type="image/svg+xml">
+<link rel="icon" href="{% static 'rotas/favicon.png' %}" sizes="48x48">
+<script src="{% static 'rotas/tema.js' %}"></script>
+<link rel="stylesheet" href="{% static 'rotas/app.css' %}">
+<style>
+body{min-height:100vh;display:grid;place-items:center}
+.login{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:3px;padding:20px;display:grid;gap:10px;width:min(300px,calc(100vw - 32px))}
+.login h1{margin:0 0 4px;font-size:17px}
+.login label{display:grid;gap:3px;font-size:13px}
+.login input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:6px}
+.login small{font-size:12px;color:var(--muted)}
+.login .lembrar{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink)}
+.erro{color:var(--bad);font-size:13px;margin:0}
+</style>
+</head>
+<body>
+<form method="post" class="login">{% csrf_token %}
+  <h1>Rotas - Expedição ADM</h1>
+  {% if form.errors %}<p class="erro">Usuário ou senha incorretos.</p>{% endif %}
+  <label>Usuário<input name="username" autocomplete="username" autofocus required></label>
+  <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
+  <small>Use o mesmo usuário e senha do Windows.</small>
+  <label class="lembrar"><input type="checkbox" name="lembrar"> Manter conectado</label>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn primary">Entrar</button>
+</form>
+</body>
+</html>

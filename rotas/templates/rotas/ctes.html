@@ -1,0 +1,181 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT-es da ida</title>
+{% if emitindo %}<meta http-equiv="refresh" content="15">{% endif %}
+<link rel="icon" href="{% static 'rotas/logo.svg' %}" type="image/svg+xml">
+<script src="{% static 'rotas/tema.js' %}?v={{ versao|urlencode }}"></script>
+<link rel="stylesheet" href="{% static 'rotas/app.css' %}?v={{ versao|urlencode }}">
+<style>
+.ret .rname{margin-block:0}
+.ret th,.ret td{padding:10px 14px;vertical-align:top}
+.ret .lj .loja{display:block;text-transform:uppercase}
+.ret .emp{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.ret .nfs{margin:0 0 8px;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,max-content);gap:4px 12px}
+.ret .nfs li{display:contents}
+.ret .nf{font-family:var(--mono);font-size:13px;font-weight:600}
+.ret .dif{color:var(--bad);font-weight:700}
+.ret .sem{color:var(--muted)}
+.ret td.cte{white-space:normal;min-width:260px}
+.ret .vals{display:flex;gap:6px 22px}
+.ret .acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ret span.chip{margin-top:10px;white-space:normal}
+.ret .chip small{display:block;font-weight:500;opacity:.8}
+.topo{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:12px}
+a.btn{display:inline-block;text-decoration:none}
+dialog{width:min(480px,calc(100vw - 32px));height:fit-content;margin:auto;border:1px solid var(--line);border-radius:3px}
+dialog .resumo{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end}
+dialog .dfoot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+dialog label{display:block;margin-bottom:10px}
+dialog input{display:block;width:100%;margin-top:4px}
+@media (max-width:760px){
+  .ret td.lj,.ret td.cte{grid-column:1/-1}
+  .ret td.lj::before{display:none}
+  .ret td.lj .loja{font-size:17px}
+  .ret td:empty{display:none}
+  .ret .acoes .btn{flex:1 1 auto;padding:9px 10px;text-align:center}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">CT-es da ida<small>NFs da 434/3386 com a carga WMS, e da sacola: um CT-e de cada por loja</small></div>
+    <div class="user"><b>{{ usuario }}</b> <span class="atalhos"><a href="{% url 'semana' %}">Voltar às rotas</a></span></div>
+  </div>
+</header>
+<main class="wrap">
+  <div class="topo">
+    {% if login_ssw %}<span>Login SSW: <b>{{ login_ssw.login }}</b></span><button class="btn sm" id="trocar-login">Trocar login SSW</button>
+    {% else %}<span class="dif">Salve o seu login do SSW para fazer CT-es.</span><button class="btn sm primary" id="trocar-login">Salvar login SSW</button>{% endif %}
+    {% if pode_todos %}<button class="btn sm primary" id="todos">Fazer todos os CT-es ({{ pode_todos }})</button>{% endif %}
+  </div>
+  <p class="dmsg">Cada CT-e entra no SSW com o login de quem apertou. Só vão agrupamento, peso (volumes × 15 kg) e o frete de envio da loja;
+    Frete e CNPJs ficam como o SSW traz. A transação precisa estar Atendida na TOTVS e a carga WMS, com todos os pedidos atendidos no 099.</p>
+  {% if dias %}<form class="week" method="get" aria-label="Dia das rotas" style="margin-bottom:16px">
+    {% for k, d, n in dias %}<button name="dia" value="{{ k }}" aria-pressed="{% if k == dia %}true{% else %}false{% endif %}"><span>{{ d|date:"D"|upper }}</span><b>{{ d|date:"d/m" }}</b><i>{{ n }} rota{{ n|pluralize }}</i></button>{% endfor %}
+    <button name="dia" value="" aria-pressed="{% if not dia %}true{% else %}false{% endif %}"><b>Todos</b><i>7 dias atrás a 3 à frente</i></button>
+  </form>{% endif %}
+  {% for rota, paradas in rotas %}
+  <section class="route ret">
+    <div class="rhead">
+      <h2 class="rname">{{ rota.nome }} <small>{{ rota.data|date:"d/m D" }}</small></h2>
+      <div class="field"><span class="k">Placa</span>{% if rota.veiculo %}<span class="plate"><span>{{ rota.veiculo }}</span></span>{% else %}<span class="v dif">sem placa na rota</span>{% endif %}</div>
+      <div class="field"><span class="k">Lojas</span><span class="v">{{ paradas|length }}</span></div>
+      {% if rota.dactes %}<a class="btn sm" href="{% url 'ctes_rota_pdf' rota.pk %}" title="Todos os DACTEs da rota num PDF; abra no Adobe para imprimir">Imprimir todos ({{ rota.dactes }})</a>{% endif %}
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Loja</th><th>Frete de envio</th><th>CT-e 434 / 3386 / carga WMS</th><th>CT-e sacola</th></tr></thead>
+      <tbody>
+      {% for p in paradas %}
+        <tr>
+          <td class="lj"><b class="loja">{{ p.loja }}</b><span class="emp">PES {{ p.pes }}</span></td>
+          <td data-label="Frete">{% if p.frete_envio %}R$ {{ p.frete_envio|floatformat:'2g' }}{% else %}<span class="dif">sem frete</span>{% endif %}</td>
+          {% for c in p.ctes %}<td class="cte" data-label="{{ c.nome|default:'CT-e' }}">{% if c.docs %}
+            <ul class="nfs">{% for d in c.docs %}<li><span class="nf">{{ d.tipo.nome }} {{ d.numero }}</span>
+              <span>{{ d.volumes|default:"?" }} vol</span><span class="{% if d.pronta %}sem{% else %}dif{% endif %}">{{ d.rotulo }}</span></li>{% endfor %}</ul>
+            <div class="vals"><div class="field"><span class="k">Peso</span><span class="v">{{ c.peso|floatformat:3 }} kg</span></div></div>
+            {% if c.situacao %}{% with s=c.situacao %}<span class="chip {% if 'rro' in s or 'conferir' in s or 'Não' in s or 'Interrompido' in s %}bad{% elif 'autorizado' in s %}ok{% else %}warn{% endif %}">{{ s }}<small>{{ c.em|date:"d/m H:i" }}{% if c.por %} · {{ c.por }}{% endif %}</small></span>{% endwith %}{% endif %}
+            <div class="acoes">
+              {% if not c.problema %}<button class="btn sm primary fazer-cte" data-url="{% url 'cte_ida' p.pk c.tipo %}"
+                data-titulo="{{ c.nome }} de {{ p.loja }}" data-placa="{{ rota.veiculo }}" data-notas="{{ c.docs|length }}" data-volumes="{{ c.volumes }}"
+                data-peso="{{ c.peso|floatformat:3 }} kg" data-frete="R$ {{ p.frete_envio|floatformat:'2g' }}">Fazer CT-e</button>{% endif %}
+              {% if c.pdf %}<a class="btn sm" href="{% url 'cte_ida_pdf' p.pk c.tipo %}" title="Baixa o PDF; abra no Adobe para imprimir">DACTE {{ c.ctrc }}</a>{% endif %}
+            </div>
+            {% if c.problema and not c.ctrc and not c.situacao %}<span class="emp">CT-e: {{ c.problema }}</span>{% endif %}
+          {% else %}<span class="sem">sem transação</span>{% endif %}</td>{% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% empty %}
+  <div class="empty">{% if dia %}Nenhuma rota com 434, 3386 ou sacola neste dia.{% else %}Nenhuma rota com 434, 3386 ou sacola de 7 dias atrás até 3 dias à frente.{% endif %}</div>
+  {% endfor %}
+</main>
+<dialog id="cte" aria-labelledby="cte-titulo">
+  <form method="dialog">
+    <div class="dhead"><h2 id="cte-titulo">Fazer o CT-e <span data-k="titulo"></span>?</h2></div>
+    <div class="dbody">
+      <div class="resumo">
+        <div class="field"><span class="k">Placa</span><span class="plate"><span data-k="placa"></span></span></div>
+        <div class="field"><span class="k">Transações</span><span class="v" data-k="notas"></span></div>
+        <div class="field"><span class="k">Volumes</span><span class="v" data-k="volumes"></span></div>
+        <div class="field"><span class="k">Peso</span><span class="v" data-k="peso"></span></div>
+        <div class="field"><span class="k">Frete</span><span class="v" data-k="frete"></span></div>
+      </div>
+      <p class="dmsg">O sistema grava no SSW com o seu login, envia e imprime o DACTE. Depois de gravado, não dá para desfazer por aqui.</p>
+    </div>
+    <div class="dfoot"><button class="btn" value="" autofocus>Cancelar</button><button class="btn primary" value="sim">Fazer CT-e</button></div>
+  </form>
+</dialog>
+<dialog id="cte-todos" aria-labelledby="todos-titulo">
+  <form method="dialog">
+    <div class="dhead"><h2 id="todos-titulo">Fazer {{ pode_todos }} CT-e{{ pode_todos|pluralize }}?</h2></div>
+    <div class="dbody"><p class="dmsg">Todos os "Fazer CT-e" desta tela entram na fila, com o seu login do SSW, e saem um por vez:
+      grava, envia e imprime. Depois de gravado, não dá para desfazer por aqui.</p></div>
+    <div class="dfoot"><button class="btn" value="" autofocus>Cancelar</button><button class="btn primary" value="sim">Fazer todos</button></div>
+  </form>
+</dialog>
+<dialog id="login" aria-labelledby="login-titulo">
+  <form id="login-form">
+    <div class="dhead"><h2 id="login-titulo">Seu login do SSW</h2></div>
+    <div class="dbody">
+      <label>CPF<input name="cpf" required autocomplete="off" value="{{ login_ssw.cpf|default:'' }}"></label>
+      <label>Usuário<input name="login" required autocomplete="username" value="{{ login_ssw.login|default:'' }}"></label>
+      <label>Senha<input name="senha" type="password" required autocomplete="current-password"></label>
+      <p class="dmsg">A senha fica guardada protegida pelo Windows do servidor; ninguém a vê no sistema.</p>
+    </div>
+    <div class="dfoot"><button class="btn" type="button" id="login-cancelar">Cancelar</button><button class="btn primary">Salvar</button></div>
+  </form>
+</dialog>
+<script>
+const csrf = {"X-CSRFToken": "{{ csrf_token }}"};
+const dlg = document.getElementById("cte"), todos = document.getElementById("cte-todos"), login = document.getElementById("login");
+let pedido;  // o "Fazer CT-e" que abriu a janela
+async function pedir(f) {
+  const r = await fetch(f.dataset.url, {method: "POST", headers: csrf});
+  return r.ok ? "" : f.dataset.titulo + ": " + ((await r.json().catch(() => ({}))).erro || r.status);
+}
+dlg.addEventListener("close", async () => {
+  const f = pedido;
+  if (dlg.returnValue !== "sim" || !f) return;  // Cancelar ou Esc
+  f.disabled = true; f.textContent = "Enviando…";
+  const erro = await pedir(f);
+  if (erro) alert("Não deu para fazer o CT-e: " + erro);
+  location.reload();
+});
+const temLogin = {% if login_ssw %}true{% else %}false{% endif %};  // sem login salvo, o botão abre a janela do login
+document.getElementById("todos")?.addEventListener("click", () => { if (!temLogin) return login.showModal(); todos.returnValue = ""; todos.showModal(); });
+todos.addEventListener("close", async () => {
+  if (todos.returnValue !== "sim") return;
+  const erros = [];
+  for (const f of document.querySelectorAll(".fazer-cte")) {  // um por vez, na ordem da tela
+    const erro = await pedir(f);
+    if (erro) erros.push(erro);
+  }
+  if (erros.length) alert("Não entraram na fila: " + erros.join(" | "));
+  location.reload();
+});
+document.getElementById("trocar-login").addEventListener("click", () => login.showModal());
+document.getElementById("login-cancelar").addEventListener("click", () => login.close());
+document.getElementById("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const r = await fetch("{% url 'login_ssw' %}", {method: "POST", headers: csrf, body: new FormData(e.target)});
+  if (!r.ok) { alert((await r.json().catch(() => ({}))).erro || "Não deu para salvar (" + r.status + ")."); return; }
+  location.reload();
+});
+document.addEventListener("click", e => {
+  const f = e.target.closest(".fazer-cte");
+  if (!f) return;
+  if (!temLogin) return login.showModal();
+  pedido = f;
+  for (const el of dlg.querySelectorAll("[data-k]")) el.textContent = f.dataset[el.dataset.k];
+  dlg.returnValue = "";
+  dlg.showModal();  // o foco começa no Cancelar: Enter sem querer não emite
+});
+</script>
+</body>
+</html>

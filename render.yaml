@@ -1,0 +1,20 @@
+# Receita da Render (Blueprint): cria o site. O banco Postgres fica na Supabase (DATABASE_URL).
+services:
+  - type: web
+    name: rotas-expedicao
+    runtime: python
+    region: virginia         # perto do banco da Supabase em us-east-1
+    plan: free               # dorme após 15 min sem uso (1º acesso ~1 min); "starter" (US$ 7) fica sempre ligado
+    buildCommand: bash build.sh
+    # só o proxy da Render chega até aqui: confia no aviso de https (x-forwarded-proto) e no IP de quem acessou
+    startCommand: waitress-serve --listen=*:$PORT --threads=8 --trusted-proxy='*' --trusted-proxy-headers='x-forwarded-proto x-forwarded-for' config.wsgi:application
+    healthCheckPath: /accounts/login/
+    envVars:
+      - key: DATABASE_URL     # Supabase → Connect → Session pooler (porta 5432)
+        sync: false
+      - key: ROTAS_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false          # preencher no painel na criação
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false

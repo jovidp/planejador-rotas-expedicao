@@ -1,0 +1,17 @@
+db.sqlite3
+.venv/
+staticfiles/
+backups/
+__pycache__/
+.superpowers/
+chave.txt
+build/
+dist/
+*.spec
+dist-novo/
+*.exe
+*.sqlite3
+pasta_atualizacao.txt
+RotasExpedicao.vbs
+.env
+.env.*

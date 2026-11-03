@@ -1,0 +1,156 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Planejamento de Rotas</title>
+<link rel="manifest" href="{% static 'rotas/manifest.webmanifest' %}">
+<meta name="theme-color" content="#1d4fa8">
+<link rel="icon" href="{% static 'rotas/logo.svg' %}" type="image/svg+xml">
+<link rel="icon" href="{% static 'rotas/favicon.png' %}" sizes="48x48">
+<link rel="apple-touch-icon" href="{% static 'rotas/icone-180.png' %}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rotas">
+<script src="{% static 'rotas/tema.js' %}?v={{ versao|urlencode }}"></script>
+<link rel="stylesheet" href="{% static 'rotas/app.css' %}?v={{ versao|urlencode }}">
+</head>
+<body data-usuario="{{ usuario }}" data-hoje="{{ hoje }}" data-dono="{% if retiradas %}1{% endif %}">
+<header>
+  <div class="bar">
+    <div class="brand">Rotas - Expedição ADM</div>
+    <nav class="week" id="week" aria-label="Dias da semana"></nav>
+    <div class="user"><b>{{ usuario }}</b>
+      <span class="atalhos"><button id="cfgbtn">Configurações</button><a href="{% url 'painel' %}">Painel</a><button id="veicbtn">Veículos</button><button id="rcadbtn">Rotas</button><a href="{% url 'ctes' %}">CT-es</a>{% if retiradas %}<a href="{% url 'retiradas' %}">Retiradas</a>{% endif %}{% if user.is_staff %}<a class="cadastro" href="{% url 'admin:index' %}">Cadastro</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="sair">Sair</button></form></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="fat" id="fat" aria-label="Controle do Faturamento"></section>
+  <div class="rsum" id="rsum"></div>
+
+  <div class="tools">
+    <div class="colmenu">
+      <button class="btn" id="colbtn" aria-expanded="false">Colunas</button>
+      <div class="pop" id="colpop" hidden></div>
+    </div>
+    <button class="btn" id="planbtn">Planejar semana</button>
+    <input type="search" id="q" placeholder="Filtrar loja, PES, carga, documento" aria-label="Filtrar">
+    <span class="mine" id="mine"></span>
+    <button class="btn primary" id="share" style="margin-left:auto">Gerar rota do dia</button>
+  </div>
+
+  <div id="routes" style="display:grid;gap:16px"><div class="empty">Carregando…</div></div>
+
+  <section class="addform" aria-labelledby="addt">
+    <h2 id="addt">Adicionar rota</h2>
+    <div class="addrow">
+      <input type="search" id="addq" list="dl-rotas" placeholder="Pesquisar rota (ex.: Baixada, Lagos, Oeste)" aria-label="Pesquisar rota">
+      <label for="addextra"><input type="checkbox" id="addextra"> Fora do planejamento</label>
+      <button class="btn primary" id="addgo">Criar rota</button>
+    </div>
+    <div class="addlojas" id="addlojas"></div>
+  </section>
+</main>
+<datalist id="dl-rotas"></datalist>
+<datalist id="dl-lojas"></datalist>
+
+<dialog id="dlg" aria-labelledby="dtitle">
+  <div class="dhead"><h2 id="dtitle">Rota do dia</h2>
+    <button class="btn primary" id="copy">Copiar imagem</button>
+    <button class="btn" id="png">Baixar PNG</button>
+    <button class="btn" id="pdf">Baixar PDF</button>
+    <button class="btn" id="close" >Fechar</button>
+  </div>
+  <div class="dbody">
+    <div class="dmsg" id="dmsg" role="status"></div>
+    <div class="paperwrap"><div class="paper" id="paper"></div></div>
+  </div>
+</dialog>
+
+<dialog id="veic" aria-labelledby="vtitle">
+  <div class="dhead"><h2 id="vtitle">Veículos</h2>
+    <button class="btn" id="vfechar">Fechar</button>
+  </div>
+  <div class="dbody">
+    <p class="dmsg">O tipo do caminhão define o frete das lojas. Placa nova ou alterada recalcula as rotas de hoje em diante que usam essa placa.</p>
+    <form class="addrow" id="vform">
+      <input id="vplaca" placeholder="Placa (ex.: BRA2E19)" aria-label="Placa" maxlength="8" required>
+      <select id="vtipo" aria-label="Tipo"><option value="accelo">Accelo (2 eixos)</option><option value="atego">Atego (3 eixos)</option></select>
+      <input id="vdesc" placeholder="Descrição (opcional)" aria-label="Descrição" maxlength="60">
+      <button class="btn primary">Salvar veículo</button>
+    </form>
+    <div class="dmsg" id="vmsg" role="status"></div>
+    <div class="tbl"><table id="vlista"></table></div>
+  </div>
+</dialog>
+
+<dialog id="peds" aria-labelledby="pedtitle">
+  <div class="dhead"><h2 id="pedtitle">Pedidos da carga</h2>
+    <button class="btn" id="pedfechar">Fechar</button>
+  </div>
+  <div class="dbody">
+    <p class="dmsg" id="pedmsg" role="status"></p>
+    <div class="tbl"><table id="pedlista"></table></div>
+  </div>
+</dialog>
+
+<dialog id="cfg" aria-labelledby="cfgtitle" style="width:min(420px,calc(100vw - 32px))">
+  <div class="dhead"><h2 id="cfgtitle">Configurações</h2>
+    <button class="btn" id="cfgfechar">Fechar</button>
+  </div>
+  <div class="dbody cfg">
+    <label>Tema <small>Automático segue o do Windows; vale só neste computador</small>
+      <select id="tema" aria-label="Tema" title="Tema (Automático segue o do Windows)"><option value="">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label>
+    <label>Meu nome na tela <small>Só muda o que aparece; o sistema continua lendo o login do Windows e a TOTVS</small>
+      <input id="apelido" maxlength="60" placeholder="{{ login }}" style="text-transform:uppercase"></label>
+    <label>Cor do meu nome <small>Aparece em "Atendido por" para todos</small>
+      <input type="color" id="minhacor"></label>
+  </div>
+</dialog>
+
+<dialog id="aviso" aria-labelledby="avisotitle" style="width:min(480px,calc(100vw - 32px))">
+  <div class="dhead"><h2 id="avisotitle">Não marcada como atendida</h2>
+    <button class="btn primary" id="avisofechar">Entendi</button>
+  </div>
+  <div class="dbody"><p class="dmsg" id="avisotxt"></p></div>
+</dialog>
+
+<dialog id="rcad" aria-labelledby="rctitle">
+  <div class="dhead"><h2 id="rctitle">Rotas do cadastro</h2>
+    <button class="btn primary" id="rcsalvar">Salvar rota</button>
+    <button class="btn" id="rcfechar">Fechar</button>
+  </div>
+  <div class="dbody">
+    <p class="dmsg">Muda as lojas das rotas criadas daqui para frente. As rotas já criadas não mudam: nelas, tire a loja pelo x da parada.</p>
+    <form class="addrow" id="rcform">
+      <select id="rcrota" aria-label="Rota"></select>
+      <input type="search" id="rcloja" list="dl-lojas" placeholder="Acrescentar loja" aria-label="Acrescentar loja">
+      <button class="btn">Acrescentar</button>
+    </form>
+    <div class="dmsg" id="rcmsg" role="status"></div>
+    <div class="tbl"><table id="rclista"></table></div>
+  </div>
+</dialog>
+
+<dialog id="plano" aria-labelledby="ptitle">
+  <div class="dhead"><h2 id="ptitle">Planejar semana</h2>
+    <button class="btn" id="pcopiar">Copiar semana anterior</button>
+    <button class="btn primary" id="pcriar">Salvar semana</button>
+    <button class="btn" id="pfechar" >Fechar</button>
+  </div>
+  <div class="dbody">
+    <div class="dmsg" id="pmsg" role="status"></div>
+    <div class="tbl"><table class="grade" id="pgrade"></table></div>
+  </div>
+</dialog>
+
+<script src="{% static 'vendor/html2canvas.min.js' %}"></script>
+<script src="{% static 'vendor/jspdf.umd.min.js' %}"></script>
+<script src="{% static 'rotas/app.js' %}?v={{ versao|urlencode }}"></script>
+<script src="{% static 'rotas/documento.js' %}?v={{ versao|urlencode }}"></script>
+<script src="{% static 'rotas/planejamento.js' %}?v={{ versao|urlencode }}"></script>
+<script src="{% static 'rotas/veiculos.js' %}?v={{ versao|urlencode }}"></script>
+<script src="{% static 'rotas/rotascad.js' %}?v={{ versao|urlencode }}"></script>
+</body>
+</html>

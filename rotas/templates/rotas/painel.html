@@ -1,0 +1,69 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel do mês</title>
+<link rel="icon" href="{% static 'rotas/logo.svg' %}" type="image/svg+xml">
+<script src="{% static 'rotas/tema.js' %}?v={{ versao|urlencode }}"></script>
+<link rel="stylesheet" href="{% static 'rotas/app.css' %}?v={{ versao|urlencode }}">
+<style>
+.topo{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:16px}
+.topo h2{margin:0;font-size:20px;text-transform:capitalize;min-width:10ch;text-align:center}
+a.btn{display:inline-block;text-decoration:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.kpis .kpi{cursor:default}
+.blocos{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:20px}
+.bloco{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+.bloco h3{margin:0 0 12px;font-size:15px}
+.dias{display:grid;gap:6px}
+.dia{display:grid;grid-template-columns:3ch 1fr 3ch;gap:8px;align-items:center;font-size:13px}
+.dia i{display:block;height:10px;border-radius:5px;background:var(--line)}
+.dia i b{display:block;height:100%;border-radius:5px;background:var(--accent)}
+.dia span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.bloco td:first-child,.bloco th:first-child{text-align:left}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">Painel do mês<small>Calculado das rotas ativas gravadas no sistema</small></div>
+    <div class="user"><b>{{ usuario }}</b> <span class="atalhos"><a href="{% url 'semana' %}">Voltar às rotas</a></span></div>
+  </div>
+</header>
+<main class="wrap">
+  <div class="topo">
+    <a class="btn" href="?mes={{ ant|date:'Y-m' }}" aria-label="Mês anterior">‹</a>
+    <h2>{{ ini|date:"F Y" }}</h2>
+    <a class="btn" href="?mes={{ seg|date:'Y-m' }}" aria-label="Próximo mês">›</a>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><span class="n">{{ ativas }}</span><span class="l">Rotas</span></div>
+    <div class="kpi"><span class="n">{{ tot.entregas }}</span><span class="l">Entregas em lojas</span></div>
+    <div class="kpi"><span class="n">{{ tot.volumes }}</span><span class="l">Volumes enviados</span></div>
+    <div class="kpi"><span class="n">{{ tot.rt }} / {{ tot.cx }}</span><span class="l">Retirados RT / CX</span></div>
+    <div class="kpi"><span class="n">R$ {{ tot.frete|floatformat:"2g" }}</span><span class="l">Frete total</span></div>
+    <div class="kpi"><span class="n">R$ {{ frete_medio|floatformat:"2g" }}</span><span class="l">Frete médio por entrega</span></div>
+    <div class="kpi bad"><span class="n">{{ canceladas }}</span><span class="l">Rotas canceladas</span></div>
+  </div>
+
+  <div class="blocos">
+    <section class="bloco"><h3>Rotas por dia da semana</h3>
+      <div class="dias">{% for d in dias %}<div class="dia"><span>{{ d.nome }}</span><i><b style="width:{{ d.pct }}%"></b></i><span>{{ d.rotas }}</span></div>{% endfor %}</div>
+    </section>
+    <section class="bloco"><h3>Motoristas</h3>
+      <div class="tbl"><table><thead><tr><th>Motorista</th><th>Rotas</th><th>Entregas</th></tr></thead><tbody>
+      {% for m in motoristas %}<tr><td>{{ m.nome }}</td><td>{{ m.rotas }}</td><td>{{ m.entregas }}</td></tr>{% empty %}<tr><td colspan="3">Nenhuma rota no mês.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+
+  <section class="bloco"><h3>Lojas (maior frete primeiro)</h3>
+    <div class="tbl"><table><thead><tr><th>Loja</th><th>Entregas</th><th>Volumes</th><th>RT</th><th>CX</th><th>Frete</th></tr></thead><tbody>
+    {% for l in lojas %}<tr><td>{{ l.nome }}</td><td>{{ l.entregas }}</td><td>{{ l.volumes }}</td><td>{{ l.rt }}</td><td>{{ l.cx }}</td><td>R$ {{ l.frete|floatformat:"2g" }}</td></tr>{% empty %}<tr><td colspan="6">Nenhuma entrega no mês.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</main>
+</body>
+</html>
